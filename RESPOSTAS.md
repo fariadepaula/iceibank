@@ -8,7 +8,13 @@
 
 ## Parte D — Transferências
 
-_A preencher ao concluir a Parte D._
+**Por que a transferência local não usa `ao_enviar()`/`ao_receber()`?** Porque essas duas operações existem para carimbar uma mensagem que atravessa a fronteira de um processo — é assim que o relógio de Lamport propaga causalidade entre processos diferentes. Numa transferência local, débito e crédito acontecem dentro do mesmo processo, na mesma thread, sem nenhuma mensagem sendo enviada a lugar nenhum: os dois são só `evento_local()`. Só existe "enviar" e "receber" quando duas agências (dois relógios lógicos independentes) precisam sincronizar via uma chamada de rede.
+
+**A falha conhecida foi reproduzida (ver `evidencias/sprint1/falha-conhecida.png`): o saldo foi revertido?** Não. Derrubei a Agência 1 e tentei transferir R$5 da conta 0 (Agência 0) para a conta 1. A resposta foi 502 e o saldo da conta 0 caiu de 50 para 45 — o débito ficou aplicado, o crédito nunca aconteceu porque a chamada remota falhou, e nada desfez o débito. Em termos de consistência bancária: o sistema perdeu a propriedade de atomicidade da transação (tudo-ou-nada). R$5 saíram de uma conta e não entraram em nenhuma outra — dinheiro "sumiu" do sistema como um todo, o que é inaceitável num banco real, mas é exatamente o gap que este sprint deixa aberto de propósito.
+
+**Duas formas de corrigir isso no Sprint 4 (alto nível):**
+1. **Two-Phase Commit (2PC):** a agência de origem não debita direto — ela pergunta primeiro às agências envolvidas "você consegue confirmar esta operação?" (fase de preparação), só aplica o débito e o crédito depois que todas confirmarem que podem, e desfaz tudo (rollback) se qualquer uma disser que não pode ou não responder.
+2. **Saga (compensação):** a operação é dividida em passos locais independentes, cada um com uma "ação compensatória" definida (ex.: se o crédito remoto falhar, dispara-se automaticamente um evento `TRANSFERENCIA_COMPENSACAO` que credita de volta a conta de origem) — em vez de travar as duas agências esperando confirmação mútua, aceita-se a inconsistência temporária e ela é corrigida logo em seguida por um passo compensador.
 
 ## Parte E — Linha do tempo
 

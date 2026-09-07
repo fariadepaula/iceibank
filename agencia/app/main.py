@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI
 
 from app import config
-from app.routers import contas
+from app.routers import contas, transferencias
 from app.services.event_log import RegistroEventos
 from app.services.lamport_clock import RelogioLamport
 
@@ -21,6 +21,7 @@ app.state.registro = RegistroEventos(f"agencia-{id_agencia}")
 app.state.contas = {}
 
 app.include_router(contas.router)
+app.include_router(transferencias.router)
 
 if __name__ == "__main__":
     import uvicorn

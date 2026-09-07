@@ -15,3 +15,15 @@ class ContaOut(BaseModel):
 
 class ValorBody(BaseModel):
     valor: float
+
+
+class TransferenciaBody(BaseModel):
+    idOrigem: int
+    idDestino: int
+    valor: float
+
+
+class CreditarRemotoBody(BaseModel):
+    valor: float
+    timestampLamport: int
+    origemAgencia: int
