@@ -1,5 +1,5 @@
-# A Conta is the JWT principal — there is no separate Cliente/Usuário entity
+# A Conta é o principal do JWT, não existe um Cliente/Usuário separado
 
-Sprint 1 has no database and no shared state between Agências — each one only ever knows about the Contas in its own partition. A "Cliente who can own several Contas across Agências" would need a directory spanning all three Agências, which nothing in this architecture provides yet. We chose instead to let the Conta itself be the login identity: it gains a `senha` field, and `id_conta` + `senha` *is* the credential.
+O Sprint 1 não tem banco de dados nem estado compartilhado entre Agências, cada uma só conhece as Contas da sua própria partição. Um "Cliente que pode ter várias Contas em Agências diferentes" precisaria de um diretório que atravessasse as três Agências, e nada nesta arquitetura fornece isso ainda. Optei por deixar a própria Conta ser a identidade de login: ela ganha um campo `senha`, e `id_conta` + `senha` é a credencial.
 
-Consequence: a Conta can only ever authenticate itself, never act on another Conta's behalf, and any future "one person, several accounts" feature needs a real shared identity store — which is a Sprint 4 (containers/persistence) concern, not a Sprint 1 one. Revisit this decision if that lands.
+Consequência: uma Conta só consegue autenticar a si mesma, nunca agir em nome de outra Conta, e qualquer funcionalidade futura de "uma pessoa, várias contas" precisa de um diretório de identidade real, o que é assunto do Sprint 4 (containers/persistência), não do Sprint 1. Revisitar esta decisão se isso acontecer.

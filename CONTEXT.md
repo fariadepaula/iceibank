@@ -1,39 +1,39 @@
-# ICEIBank — Domain Context
+# ICEIBank: Contexto de Domínio
 
-Glossary only — no implementation details. This project runs across 4 sprints on one evolving codebase; terms below are Sprint 1 (REST/MVC + Lamport clock). Terms still under discussion are marked `(EM ABERTO)` and left out until resolved.
+Só glossário, sem detalhes de implementação. Este projeto roda ao longo de 4 sprints num único código que evolui; os termos abaixo são do Sprint 1 (REST/MVC + relógio de Lamport).
 
-## Core entities
+## Entidades principais
 
-**Agência** — an independent REST service process. Same code deployed 3 times, distinguished only by `AGENCIA_ID` (0, 1, 2). Owns a partition of Contas (not a replica of the whole bank) and holds its own `RelogioLamport` (local logical clock) and event log. Agências never share memory or a database — the only way one learns about another's state is by receiving a message from it.
+**Agência**: um processo de serviço REST independente. Mesmo código, implantado 3 vezes, distinguido só pelo `AGENCIA_ID` (0, 1, 2). Dona de uma partição de Contas (não uma réplica do banco inteiro), com seu próprio `RelogioLamport` (relógio lógico local) e log de eventos. Agências nunca compartilham memória ou banco de dados; a única forma de uma saber do estado de outra é recebendo uma mensagem dela.
 
-**Conta** — belongs to exactly one Agência, decided by `id_conta % 3`. Fields: `id`, `nomeAluno`, `saldo`. Held in-memory only (no persistence this sprint — restart empties it).
+**Conta**: pertence a exatamente uma Agência, decidida por `id_conta % 3`. Campos: `id`, `nomeAluno`, `saldo`. Guardada só em memória (sem persistência neste sprint, reiniciar o processo esvazia tudo).
 
-**Partição** — the assignment rule (`id_conta % número_de_agências`) that gives each Conta exactly one owning Agência. Distinguished deliberately from *replication*: no Agência ever holds a second copy of another's Contas.
+**Partição**: a regra do enunciado (`id_conta % número_de_agências`) que atribui a cada Conta exatamente uma Agência dona. Diferente de replicação: nenhuma Agência guarda uma segunda cópia das Contas de outra.
 
-**RelogioLamport** — a per-Agência integer counter, not a wall clock. Three operations: `eventoLocal()` (increments before any local event), `aoEnviar()` (increments and stamps an outgoing message), `aoReceber(t)` (sets counter to `max(local, t) + 1`). Guarantees: if A causally happened-before B, `timestamp(A) < timestamp(B)`. Does **not** guarantee the converse — equal or out-of-order timestamps may be genuinely concurrent events, not causally related ones. This gap is what motivates the vector clock in Sprint 2.
+**RelogioLamport**: um contador inteiro por Agência, não um relógio de parede. Três operações: `eventoLocal()` (incrementa antes de qualquer evento local), `aoEnviar()` (incrementa e carimba uma mensagem saindo), `aoReceber(t)` (ajusta o contador para `max(local, t) + 1`). Garante que, se A aconteceu antes de B causalmente, `timestamp(A) < timestamp(B)`. Não garante o inverso: timestamps iguais ou fora de ordem podem ser eventos genuinamente concorrentes, sem relação causal nenhuma. Essa lacuna é o que motiva o relógio vetorial no Sprint 2.
 
-**Evento** — an immutable record of one thing an Agência did (`CRIAR_CONTA`, `DEPOSITO`, `SAQUE`, `TRANSFERENCIA_DEBITO`, `TRANSFERENCIA_CREDITO`, `TRANSFERENCIA_CREDITO_REMOTO`, `TRANSFERENCIA_FALHOU`). Carries `timestampLamport` (the logical clock, authoritative for ordering) and `horaParede` (wall clock, informational only — never used for a system decision). Appended to a per-Agência `.jsonl` log, never mutated.
+**Evento**: um registro imutável de algo que uma Agência fez (`CRIAR_CONTA`, `DEPOSITO`, `SAQUE`, `TRANSFERENCIA_DEBITO`, `TRANSFERENCIA_CREDITO`, `TRANSFERENCIA_CREDITO_REMOTO`, `TRANSFERENCIA_FALHOU`). Carrega `timestampLamport` (o relógio lógico, autoritativo para ordenação) e `horaParede` (relógio físico, só informativo, nunca usado para nenhuma decisão do sistema). Anexado a um log `.jsonl` por Agência, nunca alterado depois.
 
-**Transferência Local** — debit and credit both happen inside the same Agência's process. No message crosses a process boundary, so it uses `eventoLocal()` only — `aoEnviar()`/`aoReceber()` don't apply because there's no send/receive to mark.
+**Transferência Local**: débito e crédito acontecem dentro do processo da mesma Agência. Nenhuma mensagem atravessa fronteira de processo, então usa só `eventoLocal()`; `aoEnviar()`/`aoReceber()` não se aplicam porque não há envio nem recebimento para marcar.
 
-**Transferência Entre Agências** — debit happens locally (`eventoLocal()`) in the origin Agência, then a REST call carries the Lamport timestamp to the destination Agência via `aoEnviar()` (origin) / `aoReceber()` (destination). This is the one path in Sprint 1 where two Agências' clocks actually interact.
+**Transferência Entre Agências**: o débito acontece localmente (`eventoLocal()`) na Agência de origem, depois uma chamada REST carrega o timestamp de Lamport até a Agência de destino via `aoEnviar()` (origem) / `aoReceber()` (destino). É o único caminho do Sprint 1 em que os relógios de duas Agências realmente interagem.
 
-**Falha Conhecida (inconsistência conhecida)** — if the destination Agência is unreachable mid-transfer, the already-applied debit is *not* rolled back. This is a deliberate, in-scope state for Sprint 1, not a bug to fix — it's the exact gap Sprint 4 closes with 2PC/Saga. The system's only obligation this sprint is to record it (`TRANSFERENCIA_FALHOU`), not repair it.
+**Falha Conhecida (inconsistência conhecida)**: se a Agência de destino estiver inacessível no meio de uma transferência, o débito já aplicado não é revertido. Esse é um estado deliberado e dentro do escopo do Sprint 1, não um bug a corrigir; é exatamente a lacuna que o Sprint 4 fecha com 2PC/Saga. A única obrigação deste sprint é registrar a falha (`TRANSFERENCIA_FALHOU`), não repará-la.
 
-**Linha do Tempo Unificada** — an offline merge of all Agências' `.jsonl` logs, sorted by `timestampLamport`. Its purpose is observational: surfacing timestamp ties across Agências as candidate-concurrent events (see RelogioLamport's converse gap above).
+**Linha do Tempo Unificada**: uma junção offline dos logs `.jsonl` de todas as Agências, ordenada por `timestampLamport`. Seu propósito é observacional: expor empates de timestamp entre Agências como candidatos a eventos concorrentes (ver a lacuna do RelogioLamport acima).
 
-## Identity and trust
+## Identidade e confiança
 
-**Conta (as principal)** — the Conta entity doubles as the JWT login identity: it gains a `senha` field, and logging in as `id_conta` + `senha` is authenticating *as that Conta*, not as some separate person who happens to own it. Authentication as a Conta only authorizes operating on that same Conta — a valid token for Conta 3 saldo/depositar/sacar/transferir on Conta 7 is a 403, not a 200. There is no "Cliente" or "Usuário" entity in this domain — see *Terms deliberately avoided* below and [[0001]].
+**Conta (como principal)**: a entidade Conta também é a identidade de login do JWT, ganhando um campo `senha`; logar como `id_conta` + `senha` é se autenticar como aquela Conta, não como uma pessoa separada que é dona dela. Autenticar como uma Conta só autoriza operar naquela mesma Conta: um token válido da Conta 3 tentando sacar/depositar/consultar/transferir na Conta 7 recebe 403, não 200. Não existe entidade "Cliente" ou "Usuário" neste domínio, ver *Termos evitados de propósito* abaixo e [[0001]].
 
-**Credencial de Serviço** — the trust mechanism for Agência-to-Agência calls (`creditar-remoto`). A shared secret known to all three Agência processes, checked via a header, distinct from a Conta's JWT. It authenticates "this call came from a peer Agência," not "this call came from a specific Conta" — deliberately not the same trust concept as user auth. See [[0002]].
+**Credencial de Serviço**: o mecanismo de confiança para chamadas Agência-a-Agência (`creditar-remoto`). Um segredo compartilhado, conhecido pelos três processos de Agência, verificado via cabeçalho, distinto do JWT de uma Conta. Autentica "esta chamada veio de uma Agência parceira", não "esta chamada veio de uma Conta específica"; de propósito, não é o mesmo conceito de confiança da autenticação de usuário. Ver [[0002]].
 
-## Terms deliberately avoided
+## Termos evitados de propósito
 
-**Cliente / Usuário** — considered and rejected as a separate entity from Conta for Sprint 1. Introducing it would require a directory mapping people to Contas that spans Agências — state that doesn't exist anywhere in this architecture (no DB, no shared memory, partition-only). Revisit if a later sprint introduces shared/persistent storage (Sprint 4, containers) — until then, "the Conta is the identity" is the deliberate model, not an oversight.
+**Cliente / Usuário**: considerado e descartado como entidade separada de Conta para o Sprint 1. Introduzi-lo exigiria um diretório mapeando pessoas para Contas que atravessasse Agências, estado que não existe em lugar nenhum desta arquitetura (sem banco, sem memória compartilhada, só partição). Revisitar se um sprint futuro trouxer armazenamento compartilhado ou persistente (Sprint 4, containers); até lá, "a Conta é a identidade" é o modelo deliberado, não um esquecimento.
 
-## Sprint boundary notes (for future-you, not implementation)
+## Notas de fronteira entre sprints (para você mesmo no futuro, não implementação)
 
-- No database exists yet — Contas live in a process-local dict. Sprint 4 introduces containers, which is the natural point persistence would show up. Don't let Sprint 1 identity modeling assume a shared user directory across Agências; none exists until then.
-- Only a scalar Lamport clock exists. Sprint 2 introduces the vector clock specifically to resolve the "equal timestamp ≠ definitely concurrent" gap noted above — don't reach for anything vector-clock-shaped this sprint.
-- Agência-to-agência communication is synchronous REST today. Sprint 2 introduces Pub-Sub; the `TRANSFERENCIA_ENTRE_AGENCIAS` path is the one most likely to be rebuilt on top of messaging then, so avoid coupling its internals too tightly to "it's an HTTP call" assumptions elsewhere in the code.
+- Ainda não existe banco de dados: as Contas vivem num dicionário local ao processo. O Sprint 4 traz containers, o ponto natural onde persistência apareceria. Não deixe a modelagem de identidade do Sprint 1 pressupor um diretório de usuários compartilhado entre Agências; nenhum existe até lá.
+- Só existe relógio de Lamport escalar. O Sprint 2 traz o relógio vetorial especificamente para resolver a lacuna "timestamp igual não é necessariamente concorrente" citada acima; não busque nada parecido com vetor neste sprint.
+- A comunicação entre Agências hoje é REST síncrono. O Sprint 2 traz Pub-Sub; o caminho de transferência entre Agências é o mais provável de ser reconstruído sobre mensageria depois, então evite acoplar demais os seus detalhes internos à suposição de que "é uma chamada HTTP" em outras partes do código.

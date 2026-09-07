@@ -85,10 +85,10 @@ onMounted(carregarSaldo);
 <template>
   <div>
     <p>
-      Conta {{ auth.contaId }} — Agência {{ auth.agencia }}
+      Conta {{ auth.contaId }}, Agência {{ auth.agencia }}
       <button @click="logout">Sair</button>
     </p>
-    <h2>{{ nomeAluno }} — saldo: {{ saldo }}</h2>
+    <h2>{{ nomeAluno }}, saldo: {{ saldo }}</h2>
 
     <form @submit.prevent="depositar">
       <strong>Depositar</strong>
@@ -103,7 +103,7 @@ onMounted(carregarSaldo);
     </form>
 
     <form @submit.prevent="transferir">
-      <strong>Transferir (local ou entre agências — o backend decide)</strong>
+      <strong>Transferir (local ou entre agências, o backend decide)</strong>
       <input v-model="transferencia.idDestino" type="number" placeholder="Conta destino" required />
       <input v-model="transferencia.valor" type="number" step="0.01" placeholder="Valor" required />
       <button type="submit">Transferir</button>

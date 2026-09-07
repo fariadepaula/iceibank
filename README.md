@@ -17,7 +17,7 @@ AGENCIA_ID=0 python -m app.main   # troque para 1 e 2 nos outros terminais
 
 Todas as agências devem compartilhar o mesmo segredo JWT: exporte `ICEIBANK_JWT_SECRET` antes de subir os 3 processos.
 
-Criar uma conta exige um token de serviço (ver ADR 0002 e RESPOSTAS.md) — gere um com:
+Criar uma conta exige um token de serviço (ver ADR 0002 e RESPOSTAS.md). Gere um com:
 
 ```
 python mint_service_token.py
