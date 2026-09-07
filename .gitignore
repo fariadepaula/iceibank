@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+agencia/data/*.jsonl
+
+# Node / Vue
+node_modules/
+frontend/dist/
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
