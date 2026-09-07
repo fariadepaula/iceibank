@@ -22,12 +22,14 @@ class TransferenciaBody(BaseModel):
     idOrigem: int
     idDestino: int
     valor: float
+    operacaoId: str | None = None
 
 
 class CreditarRemotoBody(BaseModel):
     valor: float
     timestampLamport: int
     origemAgencia: int
+    operacaoId: str | None = None
 
 
 class LoginBody(BaseModel):

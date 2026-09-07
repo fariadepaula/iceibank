@@ -1,5 +1,7 @@
 # Respostas — Sprint 1
 
+> **Nota sobre evidências:** o desenvolvimento e todos os testes funcionais descritos abaixo foram feitos via curl num ambiente Linux (sem GUI/PowerShell). Os prints reais exigidos pela seção 4.2 (Windows, com `Get-Date` visível) ainda precisam ser capturados rodando o projeto localmente — os comandos e resultados usados como evidência funcional aqui documentam que cada cenário foi de fato testado e funciona.
+
 ## Parte B — Relógio de Lamport
 
 **Por que `max(local, recebido) + 1` e não adotar o recebido diretamente?** Porque o relógio precisa refletir *todo* o histórico causal que o processo já viu, não só a mensagem mais recente. Se eu simplesmente adotasse o valor recebido, um evento local que já aconteceu antes de eu receber a mensagem (e que tem um timestamp maior que o recebido) passaria a ter timestamp maior que um evento que veio depois dele causalmente — quebrando a garantia de que causa vem antes de efeito. O `+1` garante que o evento de recepção seja estritamente posterior a ambos: ao que eu já tinha visto e à mensagem que acabei de receber.
@@ -44,4 +46,8 @@ _A preencher ao concluir a Parte G._
 
 ## Funcionalidade adicional
 
-_A preencher junto do commit da funcionalidade adicional._
+**Idempotência de transferências.** `POST /transferencias` e `POST /contas/{id}/creditar-remoto` aceitam um campo opcional `operacaoId` (string gerada pelo cliente, ex.: um UUID). Cada agência guarda em memória (`app.state.operacoes_vistas`) o resultado já produzido para cada `operacaoId` visto; se a mesma requisição chegar de novo com o mesmo `operacaoId` — reenvio por timeout do cliente, retry de rede, duplo clique no frontend — a agência devolve a resposta já registrada em vez de reaplicar o débito/crédito.
+
+**Por que escolhi essa:** é a funcionalidade da lista que mais se conecta ao resto do projeto. A limitação conhecida da Parte D (débito sem reversão automática) é sobre uma operação falhar parcialmente; idempotência é sobre o outro lado do mesmo problema de rede não confiável — uma operação que *pareceu* falhar (timeout) mas na verdade só demorou a responder, levando o cliente a tentar de novo. Sem uma chave de idempotência, esse retry dobraria o valor transferido. É exatamente o tipo de garantia que o Sprint 4 vai precisar para implementar 2PC/Saga corretamente: cada passo compensador só é seguro de re-executar se for idempotente.
+
+**Evidência:** validei via curl enviando a mesma transferência entre agências duas vezes com `operacaoId=op-1` — a segunda chamada devolveu a mesma mensagem de sucesso sem debitar de novo (saldo da conta de origem ficou em 70, não 40). Print de tela real (Windows, com `Get-Date` visível) ainda por capturar em `evidencias/sprint1/funcionalidade-adicional.png` — ver observação no fim deste documento sobre evidências.

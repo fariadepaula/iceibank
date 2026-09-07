@@ -15,6 +15,11 @@ def transferir(corpo: TransferenciaBody, request: Request, principal: dict = Dep
 
     estado = request.app.state
 
+    # Idempotência: se este operacaoId já foi processado, devolve o mesmo
+    # resultado sem reaplicar o débito/crédito (funcionalidade adicional).
+    if corpo.operacaoId and corpo.operacaoId in estado.operacoes_vistas:
+        return estado.operacoes_vistas[corpo.operacaoId]
+
     conta_origem = estado.contas.get(corpo.idOrigem)
     if not conta_origem:
         raise HTTPException(status_code=404, detail="Conta de origem não encontrada nesta agência.")
@@ -40,7 +45,10 @@ def transferir(corpo: TransferenciaBody, request: Request, principal: dict = Dep
         estado.registro.registrar(
             "TRANSFERENCIA_CREDITO", ts_credito, {"idOrigem": corpo.idOrigem, "idDestino": corpo.idDestino, "valor": corpo.valor}
         )
-        return {"mensagem": "Transferência concluída (mesma agência)."}
+        resultado = {"mensagem": "Transferência concluída (mesma agência)."}
+        if corpo.operacaoId:
+            estado.operacoes_vistas[corpo.operacaoId] = resultado
+        return resultado
 
     # Caso entre agências: chama a agência de destino diretamente via REST,
     # autenticada como chamada de serviço (não com o token do usuário - ADR 0002)
@@ -50,12 +58,20 @@ def transferir(corpo: TransferenciaBody, request: Request, principal: dict = Dep
     try:
         resposta = requests.post(
             f"{url_destino}/contas/{corpo.idDestino}/creditar-remoto",
-            json={"valor": corpo.valor, "timestampLamport": ts_envio, "origemAgencia": estado.id_agencia},
+            json={
+                "valor": corpo.valor,
+                "timestampLamport": ts_envio,
+                "origemAgencia": estado.id_agencia,
+                "operacaoId": corpo.operacaoId,
+            },
             headers={"Authorization": f"Bearer {criar_token_servico()}"},
             timeout=5,
         )
         resposta.raise_for_status()
-        return {"mensagem": "Transferência concluída (entre agências)."}
+        resultado = {"mensagem": "Transferência concluída (entre agências)."}
+        if corpo.operacaoId:
+            estado.operacoes_vistas[corpo.operacaoId] = resultado
+        return resultado
     except requests.RequestException as erro:
         # LIMITAÇÃO CONHECIDA: se esta chamada falhar, o débito já aplicado acima
         # NÃO é revertido - o dinheiro "desaparece" temporariamente. Resolver isso
@@ -76,6 +92,9 @@ def transferir(corpo: TransferenciaBody, request: Request, principal: dict = Dep
 def creditar_remoto(id: int, corpo: CreditarRemotoBody, request: Request, _servico: dict = Depends(exigir_servico)):
     estado = request.app.state
 
+    if corpo.operacaoId and corpo.operacaoId in estado.operacoes_vistas:
+        return estado.operacoes_vistas[corpo.operacaoId]
+
     # Ao RECEBER uma mensagem de outra agência, o relógio de Lamport é
     # atualizado com base no timestamp recebido - é a regra 3 do algoritmo.
     ts = estado.relogio.ao_receber(corpo.timestampLamport)
@@ -88,4 +107,7 @@ def creditar_remoto(id: int, corpo: CreditarRemotoBody, request: Request, _servi
     estado.registro.registrar(
         "TRANSFERENCIA_CREDITO_REMOTO", ts, {"idConta": id, "valor": corpo.valor, "origemAgencia": corpo.origemAgencia}
     )
-    return {"mensagem": "Crédito remoto aplicado.", "saldoAtual": conta["saldo"]}
+    resultado = {"mensagem": "Crédito remoto aplicado.", "saldoAtual": conta["saldo"]}
+    if corpo.operacaoId:
+        estado.operacoes_vistas[corpo.operacaoId] = resultado
+    return resultado
