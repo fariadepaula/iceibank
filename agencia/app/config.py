@@ -1,8 +1,4 @@
-import os
-
-# TODO: substitua pelo seu OFFSET pessoal (dois últimos dígitos da matrícula/RA),
-# necessário apenas se for rodar em uma máquina compartilhada do laboratório.
-OFFSET = int(os.getenv("ICEIBANK_OFFSET", "0"))
+OFFSET = 71  # dois últimos dígitos da matrícula/RA
 
 NUMERO_AGENCIAS = 3
 PORTA_BASE = 4000 + OFFSET

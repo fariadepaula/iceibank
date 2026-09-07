@@ -2,10 +2,11 @@ import { auth, logout } from "./auth.js";
 
 // Espelha o config.js do backend - cada agência é a "porta de entrada"
 // escolhida no login (seção 12.1: o frontend precisa apontar pra qualquer uma).
+const PORTA_BASE = 4071; // 4000 + OFFSET (agencia/app/config.py)
 const BASES = {
-  0: "http://localhost:4000",
-  1: "http://localhost:4001",
-  2: "http://localhost:4002",
+  0: `http://localhost:${PORTA_BASE}`,
+  1: `http://localhost:${PORTA_BASE + 1}`,
+  2: `http://localhost:${PORTA_BASE + 2}`,
 };
 
 export async function api(caminho, { method = "GET", body, auth: exigeAuth = true } = {}) {
