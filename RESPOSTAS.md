@@ -42,7 +42,11 @@ Rodando `mesclar_logs.py` sobre os logs gerados pelos testes da Parte D apareceu
 
 ## Parte G — Frontend
 
-_A preencher ao concluir a Parte G._
+**Como o frontend reenvia o token depois do login?** Um objeto reativo simples (`src/auth.js`, exportado como `auth`) guarda `token`, `contaId` e `agencia`, sincronizado com `localStorage` via `watch()`. Uma função central `api()` (`src/api.js`) é usada por todos os componentes para chamar o backend; ela lê `auth.token` e injeta `Authorization: Bearer <token>` no cabeçalho de toda chamada que precisa de autenticação. Não usei Axios nem Pinia — um `fetch` nativo com essa função de uma dezena de linhas cobre exatamente o que interceptors fariam, sem dependência nova.
+
+**Se o token expirar no meio do uso, o que acontece?** A função `api()` verifica `resposta.status === 401` antes de qualquer outra coisa: se acontecer, ela limpa o token (`logout()`), o que faz o `App.vue` trocar automaticamente do Dashboard de volta para a tela de login (é reativo, não precisa de reload), e lança um erro com uma mensagem legível ("Sessão expirada, faça login novamente.") que o componente que chamou exibe na tela. Não é um erro genérico de console — a pessoa vê a mensagem e volta pro login.
+
+**Onde ficam Model, View e Controller no frontend?** `src/auth.js` é o Model do lado de autenticação (estado + persistência); os "dados" de saldo/nome vivem como `ref()` dentro do próprio componente que os usa, então nesse sentido o Model está parcialmente misturado com a View — não criei uma camada de modelo separada para "Conta" no frontend, já que ela só existe como resposta de uma chamada, sem estado complexo próprio. `src/components/LoginView.vue` e `Dashboard.vue` são a View (templates). O Controller é `src/api.js` — toda a lógica de comunicação com o backend, tratamento de erro e formatação de request/response fica ali, fora dos componentes; os componentes só chamam `api(...)` e reagem ao resultado. A separação é real entre Controller (api.js) e View (componentes), mas o Model é o ponto mais fraco: para telas mais complexas eu criaria um módulo de domínio próprio em vez de deixar os dados como `ref()` local do componente.
 
 ## Funcionalidade adicional
 
