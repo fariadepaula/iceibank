@@ -1,14 +1,18 @@
 import requests
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app import config
 from app.schemas import CreditarRemotoBody, TransferenciaBody
+from app.services.auth import criar_token_servico, exigir_servico, principal_atual
 
 router = APIRouter()
 
 
 @router.post("/transferencias")
-def transferir(corpo: TransferenciaBody, request: Request):
+def transferir(corpo: TransferenciaBody, request: Request, principal: dict = Depends(principal_atual)):
+    if principal.get("tipo") != "conta" or principal.get("sub") != str(corpo.idOrigem):
+        raise HTTPException(status_code=403, detail="Este token não autoriza transferir desta conta.")
+
     estado = request.app.state
 
     conta_origem = estado.contas.get(corpo.idOrigem)
@@ -38,7 +42,8 @@ def transferir(corpo: TransferenciaBody, request: Request):
         )
         return {"mensagem": "Transferência concluída (mesma agência)."}
 
-    # Caso entre agências: chama a agência de destino diretamente via REST
+    # Caso entre agências: chama a agência de destino diretamente via REST,
+    # autenticada como chamada de serviço (não com o token do usuário - ADR 0002)
     ts_envio = estado.relogio.ao_enviar()
     url_destino = next(a["url"] for a in config.AGENCIAS if a["id"] == agencia_destino)
 
@@ -46,6 +51,7 @@ def transferir(corpo: TransferenciaBody, request: Request):
         resposta = requests.post(
             f"{url_destino}/contas/{corpo.idDestino}/creditar-remoto",
             json={"valor": corpo.valor, "timestampLamport": ts_envio, "origemAgencia": estado.id_agencia},
+            headers={"Authorization": f"Bearer {criar_token_servico()}"},
             timeout=5,
         )
         resposta.raise_for_status()
@@ -67,7 +73,7 @@ def transferir(corpo: TransferenciaBody, request: Request):
 
 
 @router.post("/contas/{id}/creditar-remoto")
-def creditar_remoto(id: int, corpo: CreditarRemotoBody, request: Request):
+def creditar_remoto(id: int, corpo: CreditarRemotoBody, request: Request, _servico: dict = Depends(exigir_servico)):
     estado = request.app.state
 
     # Ao RECEBER uma mensagem de outra agência, o relógio de Lamport é

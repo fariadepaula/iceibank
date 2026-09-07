@@ -1,9 +1,10 @@
 import os
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app import config
-from app.routers import contas, transferencias
+from app.routers import auth, contas, transferencias
 from app.services.event_log import RegistroEventos
 from app.services.lamport_clock import RelogioLamport
 
@@ -15,11 +16,15 @@ if agencia_config is None:
 
 app = FastAPI(title=f"ICEIBank - Agência {id_agencia}")
 
+# Projeto acadêmico local - em produção restrinja allow_origins ao domínio do frontend.
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
 app.state.id_agencia = id_agencia
 app.state.relogio = RelogioLamport()
 app.state.registro = RegistroEventos(f"agencia-{id_agencia}")
 app.state.contas = {}
 
+app.include_router(auth.router)
 app.include_router(contas.router)
 app.include_router(transferencias.router)
 

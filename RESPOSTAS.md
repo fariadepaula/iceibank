@@ -26,7 +26,17 @@ Rodando `mesclar_logs.py` sobre os logs gerados pelos testes da Parte D apareceu
 
 ## Parte F — Autenticação JWT
 
-_A preencher ao concluir a Parte F._
+**Formato das credenciais:** `id_conta` + `senha` (senha adicionada à própria Conta, hash com PBKDF2-HMAC-SHA256 + salt aleatório via `hashlib`, sem dependência nova). A Conta *é* a identidade — não existe um "Cliente" separado nesta arquitetura (partição, sem estado compartilhado entre agências); ver [ADR 0001](docs/adr/0001-conta-is-the-jwt-principal.md).
+
+**Expiração:** 20 minutos para tokens de conta (uso humano via frontend), 24 horas para tokens de serviço (uso automatizado entre processos — ver abaixo). Nenhum dos dois é eterno.
+
+**Chamada `creditar-remoto` entre agências — mesmo JWT do usuário ou tratamento próprio?** Tratamento próprio: um token de serviço (`tipo: servico` no payload, sem `sub`), assinado com o mesmo segredo compartilhado pelas 3 agências, mas representando "esta chamada vem de uma agência parceira confiável", não "esta chamada vem do usuário X". Reusar o JWT do usuário acoplaria uma chamada interna de sistema à sessão de uma pessoa, sem necessidade. Essa mesma credencial de serviço também protege `POST /contas`: como toda rota que cria ou modifica uma conta precisa de um token válido, e criar conta é logicamente "antes" de qualquer pessoa conseguir logar (não existe usuário ainda para emitir um token de conta), tratei a criação de conta como uma operação de provisionamento do sistema, não uma ação de autoatendimento — gera-se um token de serviço localmente (`python mint_service_token.py`) para isso. Ver [ADR 0002](docs/adr/0002-service-credential-for-inter-agencia-calls.md).
+
+**Autenticação vs. autorização — a implementação verifica as duas?** Sim. Autenticação é `principal_atual()`: prova que o token é válido, não expirou e foi assinado com o segredo certo (401 se falhar). Autorização é o passo seguinte, em `exigir_dono_da_conta()`: mesmo com um token de conta válido, comparo `sub` do token com o `id` da conta que a rota está tentando acessar (403 se não bater). Testei ao vivo: um token da conta 0 tentando sacar da conta 1 recebe 403, mesmo sendo um token perfeitamente válido — autenticado, mas não autorizado para aquela conta.
+
+**Por que não é preciso consultar banco a cada requisição para validar o JWT?** Porque a assinatura HMAC é verificável matematicamente com o mesmo segredo que a gerou — se o token não foi alterado desde que a agência o assinou, a verificação local (`jwt.decode`) já garante isso, sem round-trip nenhum a um armazenamento externo. Isso é o que permite cada agência validar tokens de forma totalmente independente, sem nenhuma tabela de sessões compartilhada entre elas — essencial aqui, já que as 3 agências não compartilham nenhum estado.
+
+**Se o segredo do JWT vazasse:** qualquer pessoa poderia forjar um token válido para *qualquer* conta (bastaria assinar `{"sub": "<qualquer id>", "tipo": "conta"}` com o segredo vazado) — e, pior, também forjar tokens de serviço, contornando inclusive a proteção de `criar-conta` e `creditar-remoto`. Seria um comprometimento total do sistema de autenticação, não apenas de uma conta.
 
 ## Parte G — Frontend
 

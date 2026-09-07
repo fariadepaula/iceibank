@@ -4,6 +4,7 @@ from pydantic import BaseModel
 class ContaCreate(BaseModel):
     id: int
     nomeAluno: str
+    senha: str
     saldoInicial: float = 0
 
 
@@ -27,3 +28,13 @@ class CreditarRemotoBody(BaseModel):
     valor: float
     timestampLamport: int
     origemAgencia: int
+
+
+class LoginBody(BaseModel):
+    idConta: int
+    senha: str
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
