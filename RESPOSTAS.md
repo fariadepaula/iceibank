@@ -18,7 +18,11 @@
 
 ## Parte E — Linha do tempo
 
-_A preencher ao concluir a Parte E._
+Rodando `mesclar_logs.py` sobre os logs gerados pelos testes da Parte D apareceu um empate real, sem eu precisar forçar nada: `[Lamport 7]` aparece duas vezes — uma para `agencia-0 TRANSFERENCIA_DEBITO` (o débito de R$5 da segunda transferência, que depois falhou) e outra para `agencia-1 TRANSFERENCIA_CREDITO_REMOTO` (o crédito de R$30 da primeira transferência, que tinha sido bem-sucedida). São eventos genuinamente concorrentes: a Agência 0 debitando para uma operação nova não tem nenhuma relação causal com a Agência 1 creditando o resultado de uma operação anterior e já concluída — cada relógio simplesmente chegou em 7 pelo seu próprio caminho, por coincidência. Comparando `horaParede`: o evento da Agência 1 tem timestamp físico *anterior* (16:17:45.675) ao da Agência 0 (16:17:46.744) — quase um segundo antes, mesmo com Lamport empatado. Ou seja, mesmo quebrando o empate pela hora de parede, isso não teria significado causal nenhum: são dois eventos que não se comunicaram entre si, o empate no relógio lógico só reflete que nenhum "aconteceu antes" do outro, não que aconteceram ao mesmo tempo real.
+
+**O que isso significa na prática ao ver dois timestamps diferentes (não empatados) na linha do tempo?** `timestamp(A) < timestamp(B)` só me diz que B *pode* ter acontecido depois de A causalmente, ou que simplesmente não têm relação alguma — o relógio de Lamport nunca prova a ausência de causalidade, só a garante quando ela existe. Vendo dois timestamps diferentes eu não consigo, só com esse número, distinguir "A causou B" de "A e B são concorrentes e por acaso o contador de quem gerou B já estava mais adiantado".
+
+**O relógio de Lamport sozinho seria suficiente para distinguir com certeza concorrência de precedência causal?** Não — e o empate acima é a prova prática disso: dois eventos sem relação nenhuma caíram no mesmo número, mas o inverso também falha (dois eventos concorrentes podem receber timestamps diferentes, sem que isso signifique que um causou o outro). Um contador escalar colapsa toda a informação causal em um único inteiro, perdendo a estrutura de "quem viu o quê". É exatamente essa ambiguidade que motiva o relógio vetorial do Sprint 2: em vez de um inteiro, cada processo mantém um vetor com o conhecimento causal de todos os outros, permitindo comparar dois eventos e saber com certeza se um precede o outro ou se são genuinamente concorrentes.
 
 ## Parte F — Autenticação JWT
 
