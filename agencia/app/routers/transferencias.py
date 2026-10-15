@@ -60,7 +60,7 @@ def transferir(corpo: TransferenciaBody, request: Request, principal: dict = Dep
             f"{url_destino}/contas/{corpo.idDestino}/creditar-remoto",
             json={
                 "valor": corpo.valor,
-                "timestampLamport": ts_envio,
+                "timestampVetorial": ts_envio,
                 "origemAgencia": estado.id_agencia,
                 "operacaoId": corpo.operacaoId,
             },
@@ -95,9 +95,9 @@ def creditar_remoto(id: int, corpo: CreditarRemotoBody, request: Request, _servi
     if corpo.operacaoId and corpo.operacaoId in estado.operacoes_vistas:
         return estado.operacoes_vistas[corpo.operacaoId]
 
-    # Ao RECEBER uma mensagem de outra agência, o relógio de Lamport é
-    # atualizado com base no timestamp recebido - é a regra 3 do algoritmo.
-    ts = estado.relogio.ao_receber(corpo.timestampLamport)
+    # Ao RECEBER uma mensagem de outra agência, o vetor local é mesclado
+    # posição a posição com o recebido - é a regra 3 do algoritmo.
+    ts = estado.relogio.ao_receber(corpo.timestampVetorial)
 
     conta = estado.contas.get(id)
     if not conta:

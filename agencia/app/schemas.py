@@ -27,7 +27,7 @@ class TransferenciaBody(BaseModel):
 
 class CreditarRemotoBody(BaseModel):
     valor: float
-    timestampLamport: int
+    timestampVetorial: list[int]
     origemAgencia: int
     operacaoId: str | None = None
 
