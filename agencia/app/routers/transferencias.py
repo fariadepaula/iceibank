@@ -1,9 +1,10 @@
-import requests
+import pika
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app import config
-from app.schemas import CreditarRemotoBody, TransferenciaBody
-from app.services.auth import criar_token_servico, exigir_servico, principal_atual
+from app.schemas import TransferenciaBody
+from app.services.auth import principal_atual
+from app.services.mensageria import publicar
 
 router = APIRouter()
 
@@ -50,64 +51,57 @@ def transferir(corpo: TransferenciaBody, request: Request, principal: dict = Dep
             estado.operacoes_vistas[corpo.operacaoId] = resultado
         return resultado
 
-    # Caso entre agências: chama a agência de destino diretamente via REST,
-    # autenticada como chamada de serviço (não com o token do usuário - ADR 0002)
+    # Caso entre agências: em vez de chamar a outra agência via REST (Sprint 1),
+    # publica um evento na exchange. A agência de destino consome quando puder -
+    # se estiver fora do ar agora, a mensagem fica retida na fila durável.
     ts_envio = estado.relogio.ao_enviar()
-    url_destino = next(a["url"] for a in config.AGENCIAS if a["id"] == agencia_destino)
-
     try:
-        resposta = requests.post(
-            f"{url_destino}/contas/{corpo.idDestino}/creditar-remoto",
-            json={
+        publicar(
+            f"agencia.{agencia_destino}.creditar",
+            {
+                "idConta": corpo.idDestino,
                 "valor": corpo.valor,
-                "timestampVetorial": ts_envio,
+                "vetorEnvio": ts_envio,
                 "origemAgencia": estado.id_agencia,
+                "idOrigem": corpo.idOrigem,
                 "operacaoId": corpo.operacaoId,
             },
-            headers={"Authorization": f"Bearer {criar_token_servico()}"},
-            timeout=5,
         )
-        resposta.raise_for_status()
-        resultado = {"mensagem": "Transferência concluída (entre agências)."}
-        if corpo.operacaoId:
-            estado.operacoes_vistas[corpo.operacaoId] = resultado
-        return resultado
-    except requests.RequestException as erro:
-        # LIMITAÇÃO CONHECIDA: se esta chamada falhar, o débito já aplicado acima
-        # NÃO é revertido - o dinheiro "desaparece" temporariamente. Resolver isso
-        # de forma correta é o assunto do Sprint 4 (2PC/Saga). Por enquanto, só
-        # registramos a inconsistência no log.
+    except pika.exceptions.AMQPError as erro:
+        # Nada saiu deste processo, então desfazer o débito aqui é seguro
+        conta_origem["saldo"] += corpo.valor
         estado.registro.registrar(
             "TRANSFERENCIA_FALHOU",
             estado.relogio.evento_local(),
-            {"idOrigem": corpo.idOrigem, "idDestino": corpo.idDestino, "valor": corpo.valor, "erro": str(erro)},
+            {"idOrigem": corpo.idOrigem, "idDestino": corpo.idDestino, "valor": corpo.valor, "erro": repr(erro)},
         )
-        raise HTTPException(
-            status_code=502,
-            detail="Falha ao contatar agência de destino. Débito já aplicado - inconsistência conhecida (ver Sprint 4).",
-        )
+        raise HTTPException(status_code=503, detail="Broker de mensagens indisponível. Débito desfeito, tente novamente.")
 
-
-@router.post("/contas/{id}/creditar-remoto")
-def creditar_remoto(id: int, corpo: CreditarRemotoBody, request: Request, _servico: dict = Depends(exigir_servico)):
-    estado = request.app.state
-
-    if corpo.operacaoId and corpo.operacaoId in estado.operacoes_vistas:
-        return estado.operacoes_vistas[corpo.operacaoId]
-
-    # Ao RECEBER uma mensagem de outra agência, o vetor local é mesclado
-    # posição a posição com o recebido - é a regra 3 do algoritmo.
-    ts = estado.relogio.ao_receber(corpo.timestampVetorial)
-
-    conta = estado.contas.get(id)
-    if not conta:
-        raise HTTPException(status_code=404, detail="Conta não encontrada nesta agência.")
-
-    conta["saldo"] += corpo.valor
-    estado.registro.registrar(
-        "TRANSFERENCIA_CREDITO_REMOTO", ts, {"idConta": id, "valor": corpo.valor, "origemAgencia": corpo.origemAgencia}
-    )
-    resultado = {"mensagem": "Crédito remoto aplicado.", "saldoAtual": conta["saldo"]}
+    # 200 aqui significa "publicada", não "creditada": o crédito é assíncrono
+    resultado = {"mensagem": "Transferência publicada para a agência de destino (entrega assíncrona)."}
     if corpo.operacaoId:
         estado.operacoes_vistas[corpo.operacaoId] = resultado
     return resultado
+
+
+def aplicar_credito_remoto(estado, mensagem: dict) -> None:
+    """Consumidor da fila desta agência: créditos vindos de outras agências."""
+    operacao_id = mensagem.get("operacaoId")
+    # Entrega é "pelo menos uma vez": uma mensagem repetida não credita duas vezes
+    if operacao_id and operacao_id in estado.operacoes_vistas:
+        return
+
+    # Ao RECEBER uma mensagem de outra agência, o vetor local é mesclado
+    # posição a posição com o recebido - é a regra 3 do algoritmo.
+    ts = estado.relogio.ao_receber(mensagem["vetorEnvio"])
+    detalhes = {"idConta": mensagem["idConta"], "valor": mensagem["valor"], "origemAgencia": mensagem["origemAgencia"]}
+
+    conta = estado.contas.get(mensagem["idConta"])
+    if not conta:
+        estado.registro.registrar("CREDITO_REMOTO_FALHOU", ts, {**detalhes, "motivo": "conta não encontrada"})
+        return
+
+    conta["saldo"] += mensagem["valor"]
+    estado.registro.registrar("TRANSFERENCIA_CREDITO_REMOTO", ts, detalhes)
+    if operacao_id:
+        estado.operacoes_vistas[operacao_id] = {"mensagem": "Crédito remoto aplicado."}

@@ -25,13 +25,6 @@ class TransferenciaBody(BaseModel):
     operacaoId: str | None = None
 
 
-class CreditarRemotoBody(BaseModel):
-    valor: float
-    timestampVetorial: list[int]
-    origemAgencia: int
-    operacaoId: str | None = None
-
-
 class LoginBody(BaseModel):
     idConta: int
     senha: str

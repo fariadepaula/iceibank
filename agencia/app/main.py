@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import config
 from app.routers import auth, contas, transferencias
 from app.services.event_log import RegistroEventos
+from app.services.mensageria import assinar
 from app.services.vector_clock import RelogioVetorial
 
 id_agencia = int(os.getenv("AGENCIA_ID", "0"))
@@ -28,6 +29,9 @@ app.state.operacoes_vistas = {}
 app.include_router(auth.router)
 app.include_router(contas.router)
 app.include_router(transferencias.router)
+
+# Consumidor: créditos vindos de outras agências chegam pela fila, não por HTTP
+assinar(id_agencia, lambda mensagem: transferencias.aplicar_credito_remoto(app.state, mensagem))
 
 if __name__ == "__main__":
     import uvicorn
