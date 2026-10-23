@@ -84,12 +84,13 @@ def transferir(corpo: TransferenciaBody, request: Request, principal: dict = Dep
     return resultado
 
 
-def aplicar_credito_remoto(estado, mensagem: dict) -> None:
-    """Consumidor da fila desta agência: créditos vindos de outras agências."""
+def aplicar_credito_remoto(estado, mensagem: dict) -> bool:
+    """Consumidor da fila desta agência. Devolve False se o crédito não puder ser
+    aplicado - a mensagem vai então para a fila dead-letter."""
     operacao_id = mensagem.get("operacaoId")
     # Entrega é "pelo menos uma vez": uma mensagem repetida não credita duas vezes
     if operacao_id and operacao_id in estado.operacoes_vistas:
-        return
+        return True
 
     # Ao RECEBER uma mensagem de outra agência, o vetor local é mesclado
     # posição a posição com o recebido - é a regra 3 do algoritmo.
@@ -99,9 +100,10 @@ def aplicar_credito_remoto(estado, mensagem: dict) -> None:
     conta = estado.contas.get(mensagem["idConta"])
     if not conta:
         estado.registro.registrar("CREDITO_REMOTO_FALHOU", ts, {**detalhes, "motivo": "conta não encontrada"})
-        return
+        return False
 
     conta["saldo"] += mensagem["valor"]
     estado.registro.registrar("TRANSFERENCIA_CREDITO_REMOTO", ts, detalhes)
     if operacao_id:
         estado.operacoes_vistas[operacao_id] = {"mensagem": "Crédito remoto aplicado."}
+    return True

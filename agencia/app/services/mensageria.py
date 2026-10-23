@@ -9,6 +9,8 @@ from app.config import NUMERO_AGENCIAS
 
 URL_RABBITMQ = os.getenv("RABBITMQ_URL")
 EXCHANGE = "iceibank.eventos"
+EXCHANGE_MORTAS = "iceibank.mortas"
+FILA_MORTAS = "fila-mortas"
 
 if not URL_RABBITMQ:
     raise SystemExit(
@@ -25,11 +27,15 @@ def _abrir_canal():
     conexao = pika.BlockingConnection(pika.URLParameters(URL_RABBITMQ))
     canal = conexao.channel()
     canal.exchange_declare(EXCHANGE, exchange_type="topic", durable=True)
+    # Dead-letter: mensagens rejeitadas pelo consumidor vêm parar aqui em vez de sumir
+    canal.exchange_declare(EXCHANGE_MORTAS, exchange_type="fanout", durable=True)
+    canal.queue_declare(FILA_MORTAS, durable=True)
+    canal.queue_bind(FILA_MORTAS, EXCHANGE_MORTAS)
     # Declara as filas de todas as agências (idempotente): uma mensagem para uma
     # agência que nunca subiu fica retida em vez de descartada por falta de fila.
     for id_agencia in range(NUMERO_AGENCIAS):
         nome_fila = f"fila-agencia-{id_agencia}"
-        canal.queue_declare(nome_fila, durable=True)
+        canal.queue_declare(nome_fila, durable=True, arguments={"x-dead-letter-exchange": EXCHANGE_MORTAS})
         canal.queue_bind(nome_fila, EXCHANGE, routing_key=f"agencia.{id_agencia}.creditar")
     return canal
 
@@ -63,9 +69,18 @@ def assinar(id_agencia: int, ao_receber_mensagem) -> None:
                 canal = _abrir_canal()
 
                 def ao_chegar(canal, entrega, _propriedades, corpo):
-                    ao_receber_mensagem(json.loads(corpo))
-                    # ack manual: só sai da fila depois de processada
-                    canal.basic_ack(entrega.delivery_tag)
+                    try:
+                        aplicada = ao_receber_mensagem(json.loads(corpo))
+                    except Exception as erro:
+                        # Mensagem malformada: sem isso, ela voltaria pra fila para sempre
+                        print(f"[mensageria] erro ao processar mensagem: {erro!r}")
+                        aplicada = False
+                    if aplicada:
+                        # ack manual: só sai da fila depois de processada
+                        canal.basic_ack(entrega.delivery_tag)
+                    else:
+                        # requeue=False manda para a dead-letter exchange
+                        canal.basic_nack(entrega.delivery_tag, requeue=False)
 
                 canal.basic_consume(nome_fila, ao_chegar)
                 print(f"[mensageria] consumindo {nome_fila}")
