@@ -7,9 +7,10 @@ Banco simplificado dividido em agências, projeto de 4 sprints.
 
 Ver [`CONTEXT.md`](./CONTEXT.md) para o glossário do domínio e [`docs/adr/`](./docs/adr/) para as decisões de design registradas.
 
-## Vídeo de apresentação (Sprint 1)
+## Vídeos de apresentação
 
-[`videos/sprint1-apresentacao.mp4`](./videos/sprint1-apresentacao.mp4) (1min53s): funcionalidades e principais decisões do projeto.
+- Sprint 1: [`videos/sprint1-apresentacao.mp4`](./videos/sprint1-apresentacao.mp4) (1min53s): funcionalidades e principais decisões do projeto.
+- Sprint 2: [`videos/sprint2-apresentacao.mp4`](./videos/sprint2-apresentacao.mp4) (1min53s): da transferência perdida na Sprint 1 à mensageria resiliente, fila dead-letter e relógio vetorial.
 
 ## Como rodar
 
