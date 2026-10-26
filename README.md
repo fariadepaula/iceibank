@@ -7,6 +7,10 @@ Banco simplificado dividido em agências, projeto de 4 sprints.
 
 Ver [`CONTEXT.md`](./CONTEXT.md) para o glossário do domínio e [`docs/adr/`](./docs/adr/) para as decisões de design registradas.
 
+## Vídeo de apresentação (Sprint 1)
+
+[`videos/sprint1-apresentacao.mp4`](./videos/sprint1-apresentacao.mp4) (1min53s): funcionalidades e principais decisões do projeto.
+
 ## Como rodar
 
 RabbitMQ: crie uma instância gratuita no [CloudAMQP](https://www.cloudamqp.com/) (plano Little Lemur) e copie a AMQP URL. Para rodar localmente, use Docker:
