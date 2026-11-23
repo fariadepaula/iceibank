@@ -1,0 +1,6 @@
+[tools]
+flutter = "3.50.1"
+
+[env]
+# Flutter procura "google-chrome"; no Arch o binário é google-chrome-stable
+CHROME_EXECUTABLE = "/usr/bin/google-chrome-stable"
