@@ -34,7 +34,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 @app.exception_handler(ErroNegocio)
 def erro_de_negocio(_request: Request, erro: ErroNegocio):
-    return JSONResponse(status_code=erro.status, content={"detail": erro.detalhe})
+    return JSONResponse(status_code=erro.status, content={"detail": erro.detalhe, **getattr(erro, "extra", {})})
 
 
 app.include_router(auth.router)

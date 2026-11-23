@@ -7,7 +7,7 @@ from app import config
 from app.services.auth import hash_senha, verificar_senha
 from app.services.event_log import RegistroEventos
 from app.services.mensageria import publicar
-from app.services.vector_clock import RelogioVetorial
+from app.services.vector_clock import RelogioVetorial, comparar
 
 
 class ErroNegocio(Exception):
@@ -34,9 +34,17 @@ class BrokerIndisponivel(ErroNegocio):
     status = 503
 
 
-def _publica(conta: dict) -> dict:
+class ConflitoSincronizacao(ErroNegocio):
+    status = 409
+
+    def __init__(self, detalhe: str, **extra):
+        super().__init__(detalhe)
+        self.extra = extra
+
+
+def _publica(conta: dict, vetor_atual: list[int]) -> dict:
     """Cópia sem a senha: nada fora deste módulo recebe referência ao estado interno."""
-    return {"id": conta["id"], "nomeAluno": conta["nomeAluno"], "saldo": conta["saldo"]}
+    return {"id": conta["id"], "nomeAluno": conta["nomeAluno"], "saldo": conta["saldo"], "vetorAtual": vetor_atual}
 
 
 class Agencia:
@@ -82,7 +90,7 @@ class Agencia:
                 "senha_hash": hash_senha(senha),
             }
             self.registro.registrar("CRIAR_CONTA", ts, {"id": id_conta, "nomeAluno": nome_aluno, "saldoInicial": saldo_inicial})
-            return _publica(self._contas[id_conta])
+            return _publica(self._contas[id_conta], self.relogio.obter_vetor_atual())
 
     def autenticar(self, id_conta: int, senha: str) -> bool:
         with self._lock:
@@ -93,14 +101,14 @@ class Agencia:
 
     def consultar(self, id_conta: int) -> dict:
         with self._conta(id_conta) as conta:
-            return _publica(conta)
+            return _publica(conta, self.relogio.obter_vetor_atual())
 
     def depositar(self, id_conta: int, valor: float) -> dict:
         with self._conta(id_conta) as conta:
             ts = self.relogio.evento_local()
             conta["saldo"] += valor
             self.registro.registrar("DEPOSITO", ts, {"id": id_conta, "valor": valor, "novoSaldo": conta["saldo"]})
-            return _publica(conta)
+            return _publica(conta, self.relogio.obter_vetor_atual())
 
     def sacar(self, id_conta: int, valor: float) -> dict:
         with self._conta(id_conta) as conta:
@@ -109,7 +117,38 @@ class Agencia:
             ts = self.relogio.evento_local()
             conta["saldo"] -= valor
             self.registro.registrar("SAQUE", ts, {"id": id_conta, "valor": valor, "novoSaldo": conta["saldo"]})
-            return _publica(conta)
+            return _publica(conta, self.relogio.obter_vetor_atual())
+
+    # --- sincronização offline-first (Sprint 3, Parte E) ---
+
+    def sincronizar(self, id_conta: int, tipo: str, valor: float, vetor_conhecido: list[int], operacao_id: str | None) -> dict:
+        with self._conta(id_conta) as conta:
+            if operacao_id and operacao_id in self._operacoes_vistas:
+                return {**self._operacoes_vistas[operacao_id], "vetorAtual": self.relogio.obter_vetor_atual()}
+
+            vetor_atual = self.relogio.obter_vetor_atual()
+            relacao = comparar(vetor_conhecido, vetor_atual)
+            if relacao != "IGUAIS":
+                # Algo aconteceu nesta agência desde a última leitura do app: não
+                # aplica às cegas, devolve o estado real para o app decidir.
+                # Recusar não é evento: não avança o relógio, senão o vetorAtual
+                # devolvido já nasceria velho e o app nunca conseguiria sincronizar.
+                print(f"[sincronizar] conflito na conta {id_conta}: app={vetor_conhecido} agência={vetor_atual} ({relacao})")
+                raise ConflitoSincronizacao(
+                    "Conflito detectado: o estado da conta mudou desde a última sincronização do app.",
+                    vetorConhecido=vetor_conhecido,
+                    vetorAtual=vetor_atual,
+                    contaAtual=_publica(conta, vetor_atual),
+                )
+
+            if tipo == "SAQUE" and conta["saldo"] < valor:
+                raise SaldoInsuficiente("Saldo insuficiente.")
+            ts = self.relogio.evento_local()
+            conta["saldo"] += valor if tipo == "DEPOSITO" else -valor
+            self.registro.registrar("SINCRONIZACAO_OFFLINE", ts, {"id": id_conta, "tipo": tipo, "valor": valor, "novoSaldo": conta["saldo"]})
+            resultado = _publica(conta, list(ts))
+            self._lembrar(operacao_id, resultado)
+            return resultado
 
     # --- transferências ---
 

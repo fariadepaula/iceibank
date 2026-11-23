@@ -20,6 +20,11 @@ class RelogioVetorial:
             self._vetor[self.id_agencia] += 1
             return list(self._vetor)
 
+    def obter_vetor_atual(self) -> list[int]:
+        """Só lê o vetor, sem contar como evento (Sprint 3, sincronização offline)."""
+        with self._lock:
+            return list(self._vetor)
+
     def ao_receber(self, vetor_recebido: list[int]) -> list[int]:
         with self._lock:
             self._vetor = [max(local, recebido) for local, recebido in zip(self._vetor, vetor_recebido)]

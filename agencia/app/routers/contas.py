@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Request
 
 from app.dependencias import obter_agencia
-from app.schemas import ContaCreate, ContaOut, ValorBody
+from app.schemas import ContaCreate, ContaOut, SincronizarBody, ValorBody
 from app.services.agencia import Agencia
 from app.services.auth import exigir_dono_da_conta, exigir_servico
 from app.services.encaminhamento import encaminhar
@@ -57,3 +57,18 @@ def sacar(
     if not agencia.e_dona(id):
         return encaminhar(request, id, corpo.model_dump())
     return agencia.sacar(id, corpo.valor)
+
+
+@router.post("/contas/{id}/sincronizar", response_model=ContaOut)
+def sincronizar(
+    id: int,
+    corpo: SincronizarBody,
+    request: Request,
+    agencia: Agencia = Depends(obter_agencia),
+    _principal: dict = Depends(exigir_dono_da_conta),
+):
+    """Aplica uma operação feita offline pelo app, se a agência não mudou desde
+    que o app leu a conta (vetorConhecido == vetor atual); senão, 409."""
+    if not agencia.e_dona(id):
+        return encaminhar(request, id, corpo.model_dump())
+    return agencia.sincronizar(id, corpo.tipo, corpo.valor, corpo.vetorConhecido, corpo.operacaoId)
