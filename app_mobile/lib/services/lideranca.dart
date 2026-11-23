@@ -21,6 +21,10 @@ class Lideranca extends ChangeNotifier {
   DateTime? atualizadoEm;
   bool semResposta = false;
 
+  /// Funcionalidade adicional: trocas de liderança vistas pelo app, mais recente primeiro.
+  final List<({int lider, DateTime desde})> historico = [];
+  static const _tamanhoHistorico = 10;
+
   void iniciar() {
     _timer ??= Timer.periodic(intervaloLideranca, (_) => consultar());
     consultar();
@@ -35,6 +39,10 @@ class Lideranca extends ChangeNotifier {
         final dados = jsonDecode(resposta.body) as Map<String, dynamic>;
         _proximaConsultada = agencia;
         lider = dados['liderAtual'] as int?;
+        if (lider != null && (historico.isEmpty || historico.first.lider != lider)) {
+          historico.insert(0, (lider: lider!, desde: DateTime.now()));
+          if (historico.length > _tamanhoHistorico) historico.removeLast();
+        }
         agenciaConsultada = agencia;
         atualizadoEm = DateTime.now();
         semResposta = false;

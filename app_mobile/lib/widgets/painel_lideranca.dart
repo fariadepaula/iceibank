@@ -23,18 +23,42 @@ class PainelLideranca extends StatelessWidget {
         final detalhe = [
           if (lideranca.agenciaConsultada != null && !lideranca.semResposta)
             'segundo a Agência ${lideranca.agenciaConsultada}',
-          if (hora != null) 'às ${_doisDigitos(hora.hour)}:${_doisDigitos(hora.minute)}:${_doisDigitos(hora.second)}',
+          if (hora != null) 'às ${_hora(hora)}',
         ].join(' ');
+        final historico = lideranca.historico;
         return Card(
-          child: ListTile(
-            leading: Icon(icone, color: cor, size: 32),
-            title: Text(titulo, style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text(detalhe.isEmpty ? 'Atualiza sozinho a cada 3 s' : detalhe),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              ListTile(
+                leading: Icon(icone, color: cor, size: 32),
+                title: Text(titulo, style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(detalhe.isEmpty ? 'Atualiza sozinho a cada 3 s' : detalhe),
+              ),
+              if (historico.length > 1)
+                ExpansionTile(
+                  dense: true,
+                  leading: const Icon(Icons.history),
+                  title: Text('Histórico de líderes (${historico.length - 1} '
+                      '${historico.length == 2 ? 'troca' : 'trocas'})'),
+                  children: [
+                    for (final (i, item) in historico.indexed)
+                      ListTile(
+                        dense: true,
+                        leading: Icon(i == 0 ? Icons.workspace_premium : Icons.subdirectory_arrow_right, size: 18),
+                        title: Text('Agência ${item.lider}${i == 0 ? ' (atual)' : ''}'),
+                        trailing: Text('desde ${_hora(item.desde)}'),
+                      ),
+                  ],
+                ),
+            ],
           ),
         );
       },
     );
   }
+
+  static String _hora(DateTime t) => '${_doisDigitos(t.hour)}:${_doisDigitos(t.minute)}:${_doisDigitos(t.second)}';
 
   static String _doisDigitos(int n) => n.toString().padLeft(2, '0');
 }
