@@ -7,6 +7,7 @@ from functools import lru_cache
 
 from app import config
 from app.services.agencia import Agencia
+from app.services.bully import ServicoBully
 
 
 @lru_cache
@@ -16,3 +17,8 @@ def obter_agencia() -> Agencia:
         raise SystemExit(f"Agência {id_agencia} não configurada em config.py")
     return Agencia(id_agencia)
 
+
+@lru_cache
+def obter_bully() -> ServicoBully:
+    agencia = obter_agencia()
+    return ServicoBully(agencia.id, agencia.relogio, agencia.registro)
