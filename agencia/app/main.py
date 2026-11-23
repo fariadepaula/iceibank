@@ -1,40 +1,42 @@
-import os
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app import config
+from app.dependencias import obter_agencia
 from app.routers import auth, contas, transferencias
-from app.services.event_log import RegistroEventos
+from app.services.agencia import ErroNegocio
 from app.services.mensageria import assinar
-from app.services.vector_clock import RelogioVetorial
 
-id_agencia = int(os.getenv("AGENCIA_ID", "0"))
-agencia_config = next((a for a in config.AGENCIAS if a["id"] == id_agencia), None)
+agencia = obter_agencia()
 
-if agencia_config is None:
-    raise SystemExit(f"Agência {id_agencia} não configurada em config.py")
 
-app = FastAPI(title=f"ICEIBank - Agência {id_agencia}")
+@asynccontextmanager
+async def ciclo_de_vida(_app: FastAPI):
+    # Consumidor: créditos vindos de outras agências chegam pela fila, não por HTTP
+    assinar(agencia.id, agencia.aplicar_credito_remoto)
+    yield
+
+
+app = FastAPI(title=f"ICEIBank - Agência {agencia.id}", lifespan=ciclo_de_vida)
 
 # Projeto acadêmico local - em produção restrinja allow_origins ao domínio do frontend.
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-app.state.id_agencia = id_agencia
-app.state.relogio = RelogioVetorial(id_agencia, config.NUMERO_AGENCIAS)
-app.state.registro = RegistroEventos(f"agencia-{id_agencia}")
-app.state.contas = {}
-app.state.operacoes_vistas = {}
+
+@app.exception_handler(ErroNegocio)
+def erro_de_negocio(_request: Request, erro: ErroNegocio):
+    return JSONResponse(status_code=erro.status, content={"detail": erro.detalhe})
+
 
 app.include_router(auth.router)
 app.include_router(contas.router)
 app.include_router(transferencias.router)
 
-# Consumidor: créditos vindos de outras agências chegam pela fila, não por HTTP
-assinar(id_agencia, lambda mensagem: transferencias.aplicar_credito_remoto(app.state, mensagem))
-
 if __name__ == "__main__":
     import uvicorn
 
-    porta = int(agencia_config["url"].rsplit(":", 1)[1])
+    porta = int(config.AGENCIAS[agencia.id]["url"].rsplit(":", 1)[1])
     uvicorn.run(app, host="0.0.0.0", port=porta)
