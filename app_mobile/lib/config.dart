@@ -1,5 +1,7 @@
 /// Espelha agencia/app/config.py: 3 agências em portas consecutivas.
-const int portaBase = 4071; // 4000 + OFFSET pessoal (71)
+/// 4000 + OFFSET pessoal (71). Sobrescrevível para testes (ex.: apontar para
+/// um proxy e simular perda de rede): --dart-define=PORTA_BASE=5071
+const int portaBase = int.fromEnvironment('PORTA_BASE', defaultValue: 4071);
 const int numeroAgencias = 3;
 
 /// No emulador Android, o "localhost" do computador é 10.0.2.2:
