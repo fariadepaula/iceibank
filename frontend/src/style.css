@@ -1,0 +1,121 @@
+:root {
+  --fundo: #f3f5f8;
+  --superficie: #ffffff;
+  --borda: #dde2ea;
+  --texto: #18202b;
+  --texto-suave: #5d6878;
+  --primaria: #1b5e9a;
+  --primaria-texto: #ffffff;
+  --primaria-suave: #e3edf7;
+  --erro: #b3261e;
+  --erro-fundo: #fce8e6;
+  --ok: #146c2e;
+  --ok-fundo: #e5f4e9;
+  --raio: 12px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #111418;
+    --superficie: #1b2027;
+    --borda: #2e3540;
+    --texto: #e4e8ee;
+    --texto-suave: #9aa4b2;
+    --primaria: #a4c8ff;
+    --primaria-texto: #0b2a4a;
+    --primaria-suave: #23324a;
+    --erro: #ffb4ab;
+    --erro-fundo: #3d1714;
+    --ok: #8fd6a2;
+    --ok-fundo: #15301d;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--texto);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.4;
+}
+
+.cartao {
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  padding: 1.25rem;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  color: var(--texto-suave);
+}
+
+input,
+select {
+  font: inherit;
+  font-size: 1rem;
+  color: var(--texto);
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid var(--primaria);
+  outline-offset: -1px;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 0.65rem 1.25rem;
+  border: 1px solid transparent;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.botao-primario {
+  background: var(--primaria);
+  color: var(--primaria-texto);
+  font-weight: 600;
+}
+
+.botao-texto {
+  background: transparent;
+  color: var(--primaria);
+  border-color: var(--borda);
+  padding: 0.4rem 0.9rem;
+}
+
+.aviso {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.925rem;
+}
+
+.aviso.erro {
+  background: var(--erro-fundo);
+  color: var(--erro);
+}
+
+.aviso.ok {
+  background: var(--ok-fundo);
+  color: var(--ok);
+}
