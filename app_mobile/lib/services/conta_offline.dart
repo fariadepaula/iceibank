@@ -23,8 +23,8 @@ class ContaOffline extends ChangeNotifier {
     _assinatura = _conectividade.onConnectivityChanged.listen((estado) {
       if (!estado.contains(ConnectivityResult.none)) sincronizar();
     });
-    // Rede de segurança: a conectividade do aparelho pode voltar sem a agência
-    // ter voltado (ou o contrário), então enquanto houver fila tenta de tempos em tempos.
+    // A conectividade do aparelho pode voltar sem a agência ter voltado (ou o
+    // contrário), então enquanto houver fila o app tenta de tempos em tempos.
     _retentativa = Timer.periodic(const Duration(seconds: 5), (_) {
       if (pendentes.any((op) => !op.conflito)) sincronizar();
     });

@@ -4,6 +4,7 @@ Banco simplificado dividido em agências, projeto de 4 sprints.
 
 - Sprint 1: API REST/MVC (FastAPI) + relógio lógico de Lamport + autenticação JWT + frontend (Vue.js).
 - Sprint 2: transferências entre agências via RabbitMQ (publish/subscribe) + relógio vetorial no lugar do de Lamport + fila dead-letter.
+- Sprint 3: eleição de líder (Bully) com heartbeat, sincronização offline-first com detecção de conflito pelo relógio vetorial, app Flutter (`app_mobile/`) com painel de liderança e modo offline.
 
 Ver [`CONTEXT.md`](./CONTEXT.md) para o glossário do domínio e [`docs/adr/`](./docs/adr/) para as decisões de design registradas.
 
@@ -40,10 +41,18 @@ Criar uma conta exige um token de serviço (ver ADR 0002 e RESPOSTAS.md). Gere u
 python mint_service_token.py
 ```
 
+Qualquer agência aceita requisições de qualquer conta. Se a conta é de outra partição, a agência repassa a requisição para a dona.
+
 Linha do tempo causal (pares concorrentes e causais entre agências):
 
 ```
 python mesclar_logs.py
+```
+
+Histórico de lideranças:
+
+```
+python historico_lideranca.py
 ```
 
 Frontend:
@@ -52,4 +61,13 @@ Frontend:
 cd frontend
 npm install
 npm run dev
+```
+
+App mobile (Flutter 3.50.1, fixado no `mise.toml`):
+
+```
+cd app_mobile
+flutter pub get
+flutter run -d chrome                                      # ou -d linux
+flutter run -d emulator-5554 --dart-define=AGENCIA_HOST=10.0.2.2   # emulador Android
 ```

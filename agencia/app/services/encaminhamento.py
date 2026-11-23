@@ -14,8 +14,8 @@ TIMEOUT_S = 3
 
 def encaminhar(request: Request, id_conta: int, corpo: dict | None = None) -> JSONResponse:
     if request.headers.get(CABECALHO_ENCAMINHADO):
-        # Já veio encaminhada e mesmo assim não é daqui: configuração divergente
-        # entre agências. Melhor falhar do que ficar repassando em círculo.
+        # Se já veio encaminhada e mesmo assim não é daqui, as agências estão com
+        # configurações diferentes. Falhar evita repassar a requisição em círculo.
         raise HTTPException(status_code=500, detail="Requisição encaminhada para a agência errada.")
 
     destino = config.AGENCIAS[config.agencia_responsavel(id_conta)]

@@ -96,7 +96,7 @@ class Agencia:
         with self._lock:
             conta = self._contas.get(id_conta)
             senha_hash = conta["senha_hash"] if conta else None
-        # PBKDF2 é lento de propósito: verifica fora do lock para não travar a agência
+        # PBKDF2 é lento de propósito, então a verificação fica fora do lock para não travar a agência
         return senha_hash is not None and verificar_senha(senha, senha_hash)
 
     def consultar(self, id_conta: int) -> dict:
@@ -129,10 +129,10 @@ class Agencia:
             vetor_atual = self.relogio.obter_vetor_atual()
             relacao = comparar(vetor_conhecido, vetor_atual)
             if relacao != "IGUAIS":
-                # Algo aconteceu nesta agência desde a última leitura do app: não
-                # aplica às cegas, devolve o estado real para o app decidir.
-                # Recusar não é evento: não avança o relógio, senão o vetorAtual
-                # devolvido já nasceria velho e o app nunca conseguiria sincronizar.
+                # Algo aconteceu nesta agência desde a última leitura do app. Em vez de
+                # aplicar às cegas, devolve o estado real para o app decidir.
+                # A recusa não avança o relógio. Se avançasse, o vetorAtual devolvido
+                # já nasceria velho e o app nunca conseguiria sincronizar.
                 print(f"[sincronizar] conflito na conta {id_conta}: app={vetor_conhecido} agência={vetor_atual} ({relacao})")
                 raise ConflitoSincronizacao(
                     "Conflito detectado: o estado da conta mudou desde a última sincronização do app.",
@@ -172,7 +172,7 @@ class Agencia:
                 destino = self._contas.get(id_destino)
                 if not destino:
                     raise ContaNaoEncontrada("Conta de destino não encontrada.")
-                # Débito e crédito no mesmo processo e sob o mesmo lock: atômicos
+                # Débito e crédito acontecem sob o mesmo lock, então são atômicos
                 self.registro.registrar("TRANSFERENCIA_DEBITO", self.relogio.evento_local(), detalhes)
                 origem["saldo"] -= valor
                 destino["saldo"] += valor
