@@ -1,4 +1,5 @@
 import threading
+import time
 
 import requests
 
@@ -88,3 +89,34 @@ class ServicoBully:
     def obter_lider_atual(self):
         with self._lock:
             return self._lider_atual
+
+    def verificar_lider(self) -> None:
+        lider = self.obter_lider_atual()
+        if lider is None:
+            self.iniciar_eleicao()
+            return
+        if lider == self.id_agencia:
+            return  # eu sou a líder, nada a verificar
+
+        lider_info = next(a for a in config.AGENCIAS if a["id"] == lider)
+        try:
+            requests.get(f"{lider_info['url']}/bully/lider", timeout=TIMEOUT_S).raise_for_status()
+        except requests.exceptions.RequestException:
+            vetor = self.relogio.evento_local()
+            self.registro.registrar("LIDER_NAO_RESPONDEU", vetor, {"liderAtual": lider, "agencia": self.id_agencia})
+            with self._lock:
+                # Só esquece se ninguém anunciou outra líder enquanto o GET esperava
+                if self._lider_atual == lider:
+                    self._lider_atual = None
+            self.iniciar_eleicao()
+
+    def iniciar_heartbeat(self, intervalo_s: float = 3) -> None:
+        def laco():
+            while True:
+                time.sleep(intervalo_s)
+                try:
+                    self.verificar_lider()
+                except Exception as erro:  # o heartbeat não pode morrer por um erro pontual
+                    print(f"[bully] erro no heartbeat: {erro!r}")
+
+        threading.Thread(target=laco, name="heartbeat-bully", daemon=True).start()

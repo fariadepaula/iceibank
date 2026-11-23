@@ -22,6 +22,7 @@ async def ciclo_de_vida(_app: FastAPI):
     # Ao subir, cada agência dispara a própria eleição para descobrir (ou
     # estabelecer) a líder; em thread para não atrasar o início do servidor.
     threading.Thread(target=servico_bully.iniciar_eleicao, daemon=True).start()
+    servico_bully.iniciar_heartbeat()
     yield
 
 
